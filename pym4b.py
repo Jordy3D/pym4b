@@ -202,6 +202,9 @@ class ABMeta:
             # run the command
             os.system(command)
 
+            if convert_to_mp3:
+                # convert the file to an mp3 file
+                self.convert_file(f"{track}. {file_tile}.m4b", folder_name, delete_m4b=delete_m4b, bitrate=bitrate)
         # get the embedded cover art
         command = f'ffmpeg -y -loglevel error -i "{file}" -an -vcodec copy "{folder_name}/cover.jpg"'
 
@@ -213,43 +216,31 @@ class ABMeta:
 
         clear_print("Done splitting file!")
 
-        if convert_to_mp3:
-            print("Converting files to MP3...")
-            # convert the files to mp3
-            self.convert_files(folder_name, delete_m4b=delete_m4b, bitrate=bitrate)
+    def convert_file(self, file, folder, delete_m4b=False, bitrate=None):
+        """Converts the file to an MP3 file"""
 
-            clear_print("Done converting files!")
+        file_path = f"{folder}/{file}"
 
-    def convert_files(self, folder, delete_m4b=False, bitrate=None):
-        """Converts all M4B files in the folder to MP3 files"""
+        # get the filename without the extension
+        filename = os.path.basename(file_path)
+        filename = filename.rsplit(".", 1)[0]
 
-        # get the m4b files in the folder
-        files = os.listdir(folder)
-        files = [file for file in files if file.endswith(".m4b")]
+        command = f'ffmpeg -y -loglevel error -i "{file_path}" -vn -c:a libmp3lame '
+        if bitrate is not None:
+            # remove the k from the bitrate
+            bitrate = bitrate.replace("k", "")
+            command += f"-b:a {bitrate}k "
+        command += f'"{folder}/{filename}.mp3"'
 
-        # convert each file to an MP3 file
-        for file in files:
-            file_path = f"{folder}/{file}"
+        if debug:
+            print(f"\nRunning command: {command}")
 
-            # get the filename without the extension
-            filename = os.path.basename(file_path)
-            filename = filename.rsplit(".", 1)[0]
+        clear_print(f"Converting file: {filename}...", end="\r")
+        os.system(command)
 
-            command = f'ffmpeg -y -loglevel error -i "{file_path}" -vn -c:a libmp3lame '
-            if bitrate is not None:
-                # remove the k from the bitrate
-                bitrate = bitrate.replace("k", "")
-                command += f"-b:a {bitrate}k "
-            command += f'"{folder}/{filename}.mp3"'
-
-            if debug:
-                print(f"\nRunning command: {command}")
-
-            clear_print(f"Converting file: {filename}...", end="\r")
-            os.system(command)
-
-            if delete_m4b:
-                os.remove(file_path)
+        if delete_m4b:
+            print(f"Deleting file: {file_path}", end="\r")
+            os.remove(f'{folder}/{file}')
 
 
 class ABChapter:
