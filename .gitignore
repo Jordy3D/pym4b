@@ -155,3 +155,4 @@ cython_debug/
 # pym4b
 *_split/
 *.m4b
+test.py
