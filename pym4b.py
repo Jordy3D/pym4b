@@ -293,10 +293,13 @@ if __name__ == "__main__":
         file_path = file_path[2:]
     if file_path.startswith("'") and file_path.endswith("'"):
         file_path = file_path[1:-1]
+    if file_path.startswith('"') and file_path.endswith('"'):
+        file_path = file_path[1:-1]
 
     # check if the file exists
     if not os.path.exists(file_path):
         print("File does not exist.")
+        input("Press enter to exit...")
         exit()
 
     file_path = f'"{file_path}"'
