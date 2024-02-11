@@ -40,11 +40,11 @@ python pym4b.py -i <inputfile>
 
 ### Options
 
-- `-i` or `--input` - input file
-- `-c` or `--convert` - convert the resulting chapters to mp3
-- `-b` or `--bitrate` - bitrate for the mp3 conversion (default: keep original bitrate)
-- `-d` or `--delete` - delete the original m4b file after conversion
-- `-cf` or `--chapter_filetype` - the filetype of your chapters when you go to stitch them
+- `-i` or `--input` - input m4b file (SPLIT) or input folder (STITCH)
+- `-c` or `--convert` - SPLIT: convert the resulting chapters to mp3
+- `-b` or `--bitrate` - SPLIT: bitrate for the mp3 conversion (default: keep original bitrate)
+- `-d` or `--delete` - SPLIT: delete the original m4b file after conversion
+- `-cf` or `--chapter_filetype` - STITCH: the filetype of your chapters when you go to stitch them
 
 ### TODO
 
