@@ -156,3 +156,4 @@ cython_debug/
 *_split/
 *.m4b
 test.py
+test.mp3

@@ -2,6 +2,8 @@ import os
 import subprocess
 import argparse
 
+import win32com
+
 debug = False
 
 
@@ -29,6 +31,7 @@ def load_metadata_from_file(file):
     output, error = result.stdout, result.stderr
     return output, error
 # endregion
+
 
 # region Classes
 class ABMeta:
@@ -254,16 +257,125 @@ class ABChapter:
         self.track_number = track_number
 
 # endregion
+        
+def from_m4b(file, convert_to_mp3=True, bitrate=None, delete_m4b=False):
+    """Splits the file into multiple files based on the chapters"""
+    file = f'"{file}"'
 
+    # prepare metadata object
+    abm = ABMeta()
+
+    print(f"Loading metadata from {file}...", end="\r")
+    abm.load_metadata(file=file)
+    clear_print(f"Loaded metadata from {file}!")
+
+    print("Chapters:")
+    for chapter in abm.chapters:
+        print(f"  {chapter.track_number} - {chapter.title}")
+
+    abm.split(convert_to_mp3=convert_to_mp3, bitrate=bitrate, delete_m4b=delete_m4b)
+
+    print("Done!")
+
+
+def to_m4b(folder, chapters, chapter_filetype="m4b", delete_chapters=False):
+    import file as f
+
+    """Combines the chapters into a single file"""  
+
+    # get the chapter files
+    chapter_files = [f"{folder}/{chapter}" for chapter in chapters if chapter.endswith(chapter_filetype)]
+
+    print(f"Loading files...", end=" ")
+    chapter_files = [f.File(chapter) for chapter in chapter_files]
+    chapter_files.sort(key=lambda x: int(x.properties["#"]))
+    print("Done!")
+
+    # store the first file for getting basic metadata
+    first_file = chapter_files[0]
+
+    title = first_file.properties["Album"]
+    folder = filename_string(title)
+    # create a directory for the combined file
+    os.makedirs(f"combined/{folder}", exist_ok=True)
+    artist = first_file.properties["Contributing artists"]
+
+    def length_to_milliseconds(length):
+        """Converts a length string to milliseconds"""
+        length = length.split(":")
+        hours = int(length[0])
+        minutes = int(length[1])
+        seconds = int(length[2])
+        return (hours * 60 * 60 + minutes * 60 + seconds) * 1000
+
+    # create a metadata file
+    print(f"Creating metadata file for {first_file.properties['Album']}...", end=" ")
+    metadata_file = f"combined/{folder}/metadata.txt"
+    with open(metadata_file, "w", encoding="utf-8") as file:
+        file.write(";FFMETADATA1\n")
+        file.write(f"title={title}\n")
+        file.write(f"album={title}\n")
+        file.write(f"artist={artist}\n")
+
+        start = 0
+        for i, chapter in enumerate(chapter_files):
+            chapter_file = chapter
+            file.write(f"\n[CHAPTER]\n")
+            file.write(f"TIMEBASE=1/1000\n")
+            file.write(f"START={start}\n")
+            end = chapter_file.get_duration()
+            end += start
+            file.write(f"END={end}\n")
+            file.write(f"TITLE={chapter_file.properties['Title']}\n")
+
+            start = end
+    print("Done!")
+
+    print(f"Creating concat file...", end=" ")
+    concat_file = f"combined/{folder}/concat.txt"
+    with open(concat_file, "w", encoding="utf-8") as file:
+        for chapter in chapter_files:
+            path = chapter.path
+            file.write(f"file 'file:{path}'\n")
+    print("Done!")
+
+    # create the command
+    print(f"Creating merged MP3 file...", end=" ")
+    command = f'ffmpeg -y -loglevel error -f concat -safe 0 -i "{concat_file}" -c copy "combined/{folder}/output.mp3"'
+    os.system(command)
+    print("Done!")
+
+    # convert output to m4a
+    print(f"Converting to M4A...", end=" ")
+    command = f'ffmpeg -y -loglevel error -i "combined/{folder}/output.mp3" "combined/{folder}/output.m4a"'
+    os.system(command)
+    print("Done!")
+
+    print(f"Converting to M4B...", end=" ")
+    command = f'ffmpeg -y -loglevel error -i "combined/{folder}/output.m4a" -i "{metadata_file}" -map_metadata 1 -codec copy "combined/{folder}/{folder}.m4b"'
+    os.system(command)
+    print(command)
+
+    print("Done!")
+
+    print(f"Deleting temp files...", end=" ")
+    os.remove(metadata_file)
+    os.remove(concat_file)
+    os.remove(f"combined/{folder}/output.mp3")
+    os.remove(f"combined/{folder}/output.m4a")
+    print("Done!")
+
+    
 if __name__ == "__main__":
-    os.system("TITLE Bane's M4B Splitter")
+    os.system("TITLE pym4b")
 
     # Set up the argument parser
     parser = argparse.ArgumentParser(description="Split M4B files into chapters.")
-    parser.add_argument("-i", "--input", help="Path to the M4B file.", default=None, dest="file_path")
+    parser.add_argument("-i", "--input", help="Path input file or folder.", default=None, dest="file_path")
     parser.add_argument("-c", "--convert", help="Convert the chapters to MP3.", action="store_true", default=False)
     parser.add_argument("-b", "--bitrate", help="Bitrate to encode the chapters at.", default=None)
     parser.add_argument("-d", "--delete", help="Delete the original M4B file after converting.", action="store_true", default=False)
+    parser.add_argument("-cf", "--chapter_filetype", help="Filetype of the chapters.", default="mp3")
     args = parser.parse_args()
 
     # Get the arguments
@@ -271,9 +383,10 @@ if __name__ == "__main__":
     convert = args.convert
     bitrate = args.bitrate
     convert_delete = args.delete
+    chapter_filetype = args.chapter_filetype
 
     if file_path == None:
-        file_path = input("Enter the path to the M4B file: ")
+        file_path = input("Enter the input file or folder: ")
 
     if file_path == "":
         print("No file path entered.")
@@ -293,19 +406,9 @@ if __name__ == "__main__":
         input("Press enter to exit...")
         exit()
 
-    file_path = f'"{file_path}"'
-
-    # prepare metadata object
-    abm = ABMeta()
-
-    print(f"Loading metadata from {file_path}...", end="\r")
-    abm.load_metadata(file=file_path)
-    clear_print(f"Loaded metadata from {file_path}!")
-
-    print("Chapters:")
-    for chapter in abm.chapters:
-        print(f"  {chapter.track_number} - {chapter.title}")
-
-    abm.split(convert_to_mp3=convert, bitrate=bitrate, delete_m4b=convert_delete)
-
-    print("Done!")
+    # if the input is a .m4b file
+    if file_path.endswith(".m4b"):
+        from_m4b(file_path, convert_to_mp3=convert, bitrate=bitrate, delete_m4b=convert_delete)
+    # if the input is a folder
+    if os.path.isdir(file_path):
+        to_m4b(file_path, os.listdir(file_path), chapter_filetype=chapter_filetype, delete_chapters=False)
